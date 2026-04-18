@@ -135,6 +135,7 @@ html, body {
   box-shadow: var(--shadow);
   border: 1px solid var(--border);
   overflow: hidden;
+  container-type: size;
 }
 
 .preview-image {
