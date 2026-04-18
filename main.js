@@ -5,6 +5,7 @@
   const viewHtmlBtn        = document.getElementById('viewHtmlBtn');
   const previewImage       = document.getElementById('previewImage');
   const previewContainer   = document.getElementById('previewContainer');
+  const snapshotStage      = document.getElementById('snapshotStage');
   const previewPlaceholder = document.getElementById('previewPlaceholder');
   const previewDims        = document.getElementById('previewDims');
   const statusIndicator    = document.getElementById('statusIndicator');
@@ -102,14 +103,21 @@
       highlightEls.push(hlEl);
     });
 
-    previewContainer.appendChild(textLayerEl);
-    previewContainer.appendChild(highlightLayerEl);
+    snapshotStage.appendChild(textLayerEl);
+    snapshotStage.appendChild(highlightLayerEl);
   }
 
   /* ── Preview Display ── */
 
   function showPreview(base64Data, dimensions, spatialMap) {
     const map = spatialMap || [];
+
+    // Clear any previous layers before loading new image
+    buildLayers([], dimensions);
+
+    // Fix the stage to the exact aspect ratio of the captured screenshot
+    // so all % positions inside map perfectly to image pixels at any display size
+    snapshotStage.style.aspectRatio = `${dimensions.width} / ${dimensions.height}`;
 
     previewImage.src = 'data:image/png;base64,' + base64Data;
     previewContainer.classList.remove('hidden');

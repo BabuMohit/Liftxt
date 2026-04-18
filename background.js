@@ -122,9 +122,14 @@ async function captureFullPage(tabId) {
           var totalHeight = ${height};
           var map = [];
 
-          function isFixedOrSticky(el) {
+          var EXCLUDED_TAGS = { SCRIPT:1, STYLE:1, NOSCRIPT:1, NAV:1, FOOTER:1 };
+
+          function ancestorCheck(el) {
             var cur = el;
             while (cur && cur.nodeType === 1 && cur !== document.documentElement) {
+              var tag = cur.tagName ? cur.tagName.toUpperCase() : '';
+              if (EXCLUDED_TAGS[tag]) return true;
+              if (cur.getAttribute('aria-hidden') === 'true') return true;
               var pos = window.getComputedStyle(cur).position;
               if (pos === 'fixed' || pos === 'sticky') return true;
               cur = cur.parentElement;
@@ -139,11 +144,10 @@ async function captureFullPage(tabId) {
               acceptNode: function(node) {
                 var text = node.textContent.trim();
                 if (!text) return NodeFilter.FILTER_REJECT;
+                if (!/[a-zA-Z0-9]/.test(text)) return NodeFilter.FILTER_REJECT;
                 var parent = node.parentElement;
                 if (!parent) return NodeFilter.FILTER_REJECT;
-                var tag = parent.tagName ? parent.tagName.toUpperCase() : '';
-                if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT') return NodeFilter.FILTER_REJECT;
-                if (isFixedOrSticky(parent)) return NodeFilter.FILTER_REJECT;
+                if (ancestorCheck(parent)) return NodeFilter.FILTER_REJECT;
                 var style = window.getComputedStyle(parent);
                 if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) {
                   return NodeFilter.FILTER_REJECT;
@@ -156,10 +160,10 @@ async function captureFullPage(tabId) {
           var node;
           while ((node = walker.nextNode())) {
             var text = node.textContent.trim();
-            if (!text) continue;
+            if (!text || !/[a-zA-Z0-9]/.test(text)) continue;
             var parent = node.parentElement;
             var rect = parent.getBoundingClientRect();
-            if (rect.width === 0 || rect.height === 0) continue;
+            if (rect.width < 4 || rect.height < 4) continue;
             var cs = window.getComputedStyle(parent);
             var ax = rect.left + window.scrollX;
             var ay = rect.top  + window.scrollY;

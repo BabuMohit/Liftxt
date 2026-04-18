@@ -135,15 +135,22 @@ html, body {
   box-shadow: var(--shadow);
   border: 1px solid var(--border);
   overflow: hidden;
-  /* inline-size containment only — lets height resolve naturally from the image */
   container-type: inline-size;
+}
+
+/* Fixed-ratio stage — aspect-ratio set dynamically by JS */
+.snapshot-stage {
+  position: relative;
+  width: 100%;
 }
 
 .preview-image {
   display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
-  height: auto;
-  position: relative;
+  height: 100%;
   z-index: 1;
 }
 
@@ -159,7 +166,8 @@ html, body {
 
 .text-node {
   position: absolute;
-  color: transparent;
+  background: transparent !important;
+  color: transparent !important;
   user-select: text;
   pointer-events: auto;
   cursor: text;
@@ -167,11 +175,10 @@ html, body {
   overflow: hidden;
   line-height: 1;
   border-radius: 2px;
-  transition: background-color 0.12s;
 }
 
 .text-node:hover {
-  background-color: rgba(0, 123, 255, 0.1);
+  background: rgba(0, 123, 255, 0.07) !important;
 }
 
 .highlight-layer {
