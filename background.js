@@ -181,6 +181,8 @@ async function captureFullPage(tabId) {
     };
   } finally {
     if (attached) {
+      await sendDebugCommand(tabId, 'Emulation.clearDeviceMetricsOverride').catch(() => {});
+      await sendDebugCommand(tabId, 'Emulation.setEmulatedMedia', { media: '' }).catch(() => {});
       await detachDebugger(tabId);
     }
   }
@@ -236,6 +238,8 @@ async function capturePdfOnly(tabId) {
     };
   } finally {
     if (attached) {
+      await sendDebugCommand(tabId, 'Emulation.clearDeviceMetricsOverride').catch(() => {});
+      await sendDebugCommand(tabId, 'Emulation.setEmulatedMedia', { media: '' }).catch(() => {});
       await detachDebugger(tabId);
     }
   }
