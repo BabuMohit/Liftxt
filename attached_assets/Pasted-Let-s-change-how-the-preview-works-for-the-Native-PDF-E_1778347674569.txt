@@ -1,0 +1,24 @@
+Let's change how the preview works for the Native PDF Export method. Instead of showing a PNG screenshot and faking the text selection, I want to literally display the generated PDF in the preview panel using an iframe so the text is natively selectable.
+
+Please make the following updates:
+
+1. Update `main.html`:
+- Inside the `<div class="preview-container hidden" id="previewContainer">`, add an iframe right next to the image:
+  `<iframe id="pdfPreviewFrame" class="hidden" style="width: 100%; height: 100%; border: none; min-height: 80vh;"></iframe>`
+
+2. Update `main.js`:
+- Get the reference to the new iframe: `const pdfPreviewFrame = document.getElementById('pdfPreviewFrame');`
+- Create a new function called `showPdfPreview(base64PdfData)`.
+  - Inside this function, hide the `previewImage` and `previewPlaceholder`.
+  - Hide the `textLayerEl` and `highlightLayerEl` (if they exist) so old text doesn't overlap.
+  - Show the `previewContainer` and the `pdfPreviewFrame`.
+  - Convert the `base64PdfData` string into a Blob: `const byteCharacters = atob(base64PdfData); const byteNumbers = new Array(byteCharacters.length); for (let i = 0; i < byteCharacters.length; i++) { byteNumbers[i] = byteCharacters.charCodeAt(i); } const byteArray = new Uint8Array(byteNumbers); const blob = new Blob([byteArray], {type: 'application/pdf'});`
+  - Create an object URL: `const pdfUrl = URL.createObjectURL(blob);`
+  - Set the iframe's source, appending parameters to hide the toolbar and fit the width: `pdfPreviewFrame.src = pdfUrl + '#toolbar=0&view=FitH';`
+  
+3. Update the `capture_pdf` click handler in `main.js`:
+- In the success response block, remove the call to `showPreview()`.
+- Instead, call `showPdfPreview(response.pdfData)`.
+- Enable the download button just like before.
+
+4. Ensure that the original `showPreview` function (used by the Interactive Capture) hides `pdfPreviewFrame` and shows `previewImage`, so both features can safely share the same preview panel.

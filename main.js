@@ -17,7 +17,9 @@
   const searchCounter      = document.getElementById('searchCounter');
   const prevMatchBtn       = document.getElementById('prevMatchBtn');
   const nextMatchBtn       = document.getElementById('nextMatchBtn');
+  const pdfPreviewFrame    = document.getElementById('pdfPreviewFrame');
 
+  let currentPdfObjectUrl = null;
   let capturedHtml       = null;
   let isBusy             = false;
   let currentSpatialMap  = [];
@@ -133,6 +135,12 @@
   function showPreview(base64Data, dimensions, spatialMap) {
     currentDimensions = dimensions;
     currentSpatialMap = spatialMap || [];
+
+    /* Switch to PNG mode — hide PDF iframe, show image */
+    pdfPreviewFrame.classList.add('hidden');
+    pdfPreviewFrame.src = '';
+    if (currentPdfObjectUrl) { URL.revokeObjectURL(currentPdfObjectUrl); currentPdfObjectUrl = null; }
+    previewImage.classList.remove('hidden');
 
     previewImage.src = 'data:image/png;base64,' + base64Data;
     previewContainer.classList.remove('hidden');
@@ -262,11 +270,36 @@
     });
   }
 
+  function showPdfPreview(base64PdfData) {
+    /* Tear down any existing PNG ghost layers */
+    if (textLayerEl)      { textLayerEl.classList.add('hidden'); }
+    if (highlightLayerEl) { highlightLayerEl.classList.add('hidden'); }
+    resetSearch();
+    searchInput.disabled = true;
+
+    /* Revoke previous PDF object URL if any */
+    if (currentPdfObjectUrl) { URL.revokeObjectURL(currentPdfObjectUrl); }
+
+    /* Build blob URL and show in iframe */
+    const bytes = atob(base64PdfData);
+    const buf   = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) buf[i] = bytes.charCodeAt(i);
+    const blob  = new Blob([buf], { type: 'application/pdf' });
+    currentPdfObjectUrl = URL.createObjectURL(blob);
+
+    previewImage.classList.add('hidden');
+    previewPlaceholder.classList.add('hidden');
+    previewContainer.classList.remove('hidden');
+
+    pdfPreviewFrame.src = currentPdfObjectUrl + '#toolbar=0&view=FitH';
+    pdfPreviewFrame.classList.remove('hidden');
+  }
+
   function handlePdfResponse(response) {
     if (response.success) {
       storedPdfData = response.pdfData;
       downloadPdfBtn.disabled = false;
-      showPreview(response.screenshot, response.dimensions, []);
+      showPdfPreview(response.pdfData);
       setStatus('success', `PDF Captured \u2014 ${response.dimensions.width}\u00d7${response.dimensions.height}px`);
     } else {
       setStatus('error', response.error || 'PDF capture failed.');
