@@ -203,6 +203,8 @@ async function capturePdfOnly(tabId) {
     const paperWidth  = width  / 96;
     const paperHeight = height / 96;
 
+    await sendDebugCommand(tabId, 'Emulation.setEmulatedMedia', { media: 'screen' });
+
     const pdfResult = await sendDebugCommand(tabId, 'Page.printToPDF', {
       printBackground:  true,
       paperWidth,
