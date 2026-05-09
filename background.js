@@ -186,6 +186,104 @@ async function captureFullPage(tabId) {
   }
 }
 
+/* ══════════════════════════════════════════════
+   PDF-ONLY CAPTURE ENGINE  (completely separate)
+   ══════════════════════════════════════════════ */
+
+async function capturePdfOnly(tabId) {
+  let attached = false;
+  try {
+    await attachDebugger(tabId);
+    attached = true;
+
+    const metrics = await sendDebugCommand(tabId, 'Page.getLayoutMetrics');
+    const width  = Math.ceil(metrics.cssContentSize.width);
+    const height = Math.ceil(metrics.cssContentSize.height);
+
+    const paperWidth  = width  / 96;
+    const paperHeight = height / 96;
+
+    const pdfResult = await sendDebugCommand(tabId, 'Page.printToPDF', {
+      printBackground:  true,
+      paperWidth,
+      paperHeight,
+      marginTop:    0,
+      marginBottom: 0,
+      marginLeft:   0,
+      marginRight:  0,
+      pageRanges:   '1'
+    });
+
+    return { pdfData: pdfResult.data };
+  } finally {
+    if (attached) {
+      await detachDebugger(tabId);
+    }
+  }
+}
+
+async function handleCapturePdf(url, sendResponse) {
+  let newTab = null;
+  try {
+    newTab = await new Promise((resolve, reject) => {
+      chrome.tabs.create({ url, active: false }, (tab) => {
+        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+        else resolve(tab);
+      });
+    });
+
+    await waitForTabLoad(newTab.id);
+    await new Promise(r => setTimeout(r, 800));
+
+    const result = await capturePdfOnly(newTab.id);
+
+    await new Promise((resolve) => {
+      chrome.tabs.remove(newTab.id, () => resolve());
+    });
+    newTab = null;
+
+    if (extensionTabId !== null) {
+      chrome.tabs.update(extensionTabId, { active: true });
+    }
+
+    sendResponse({ success: true, ...result });
+  } catch (err) {
+    if (newTab) chrome.tabs.remove(newTab.id, () => {});
+    sendResponse({ success: false, error: err.message });
+  }
+}
+
+async function handleFindAndCapturePdf(url, sendResponse) {
+  try {
+    const [currentWindow] = await new Promise((resolve) => {
+      chrome.windows.getCurrent({ populate: true }, (win) => resolve([win]));
+    });
+
+    const matchingTab = currentWindow.tabs.find(
+      (t) => t.url === url || t.url.startsWith(url) || url.startsWith(t.url)
+    );
+
+    if (!matchingTab) {
+      sendResponse({ success: false, error: `No tab found with URL matching: ${url}` });
+      return;
+    }
+
+    const result = await capturePdfOnly(matchingTab.id);
+
+    if (extensionTabId !== null) {
+      chrome.tabs.update(extensionTabId, { active: true });
+    }
+
+    sendResponse({ success: true, ...result });
+  } catch (err) {
+    sendResponse({ success: false, error: err.message });
+  }
+}
+
+/* ══════════════════════════════
+   MESSAGE ROUTER
+   ══════════════════════════════ */
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'capture') {
     handleCapture(message.url, sendResponse);
@@ -193,6 +291,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message.action === 'find_and_capture') {
     handleFindAndCapture(message.url, sendResponse);
+    return true;
+  }
+  if (message.action === 'capture_pdf') {
+    handleCapturePdf(message.url, sendResponse);
+    return true;
+  }
+  if (message.action === 'find_and_capture_pdf') {
+    handleFindAndCapturePdf(message.url, sendResponse);
     return true;
   }
 });

@@ -243,6 +243,87 @@
     activateMatch(currentMatchIdx);
   }
 
+  /* ══════════════════════════════════════════
+     PDF EXPORT  (completely separate flow)
+     ══════════════════════════════════════════ */
+
+  const capturePdfBtn     = document.getElementById('capturePdfBtn');
+  const findCapturePdfBtn = document.getElementById('findCapturePdfBtn');
+  const downloadPdfBtn    = document.getElementById('downloadPdfBtn');
+
+  let storedPdfData = null;
+
+  async function sendPdfCapture(action, url) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ action, url }, (res) => {
+        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+        else resolve(res);
+      });
+    });
+  }
+
+  function handlePdfResponse(response) {
+    if (response.success) {
+      storedPdfData = response.pdfData;
+      downloadPdfBtn.disabled = false;
+      setStatus('success', 'PDF generated and ready!');
+    } else {
+      setStatus('error', response.error || 'PDF capture failed.');
+    }
+  }
+
+  capturePdfBtn.addEventListener('click', async () => {
+    if (isBusy) return;
+    const url = getUrl();
+    if (!url) { setStatus('error', 'Please enter a URL first.'); return; }
+    urlInput.value = url;
+    setBusy(true);
+    setStatus('loading', 'Capturing PDF…');
+    storedPdfData = null;
+    downloadPdfBtn.disabled = true;
+    try {
+      handlePdfResponse(await sendPdfCapture('capture_pdf', url));
+    } catch (err) {
+      setStatus('error', err.message || 'Unknown error.');
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  findCapturePdfBtn.addEventListener('click', async () => {
+    if (isBusy) return;
+    const url = getUrl();
+    if (!url) { setStatus('error', 'Please enter a URL first.'); return; }
+    urlInput.value = url;
+    setBusy(true);
+    setStatus('loading', 'Finding tab and capturing PDF…');
+    storedPdfData = null;
+    downloadPdfBtn.disabled = true;
+    try {
+      handlePdfResponse(await sendPdfCapture('find_and_capture_pdf', url));
+    } catch (err) {
+      setStatus('error', err.message || 'Unknown error.');
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  downloadPdfBtn.addEventListener('click', () => {
+    if (!storedPdfData) return;
+    const bytes = atob(storedPdfData);
+    const buf = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) buf[i] = bytes.charCodeAt(i);
+    const blob = new Blob([buf], { type: 'application/pdf' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'captured-page.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
   /* ── Capture Handlers ── */
 
   async function sendCapture(action, url) {

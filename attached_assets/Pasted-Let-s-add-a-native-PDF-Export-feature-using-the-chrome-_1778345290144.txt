@@ -1,0 +1,32 @@
+Let's add a native "PDF Export" feature using the chrome.debugger API's `Page.printToPDF` command. 
+
+CRUCIAL INSTRUCTION: I want this to be a completely separate feature. Do NOT touch, modify, or add anything to the existing `captureFullPage` function, the PNG screenshot logic, or the TreeWalker spatial map. 
+
+Please build a parallel flow specifically for PDFs by following these exact steps:
+
+1. Update `background.js` (New Capture Engine for PDF):
+Create a completely separate background function called `capturePdfOnly(tabId)`. 
+- Inside it, attach the debugger, wait for the tab to load, and get the `Page.getLayoutMetrics` to find the content dimensions.
+- Calculate paper dimensions in inches: `paperWidth = width / 96` and `paperHeight = height / 96`.
+- Call `Page.printToPDF` with parameters: `printBackground: true`, `paperWidth`, `paperHeight`, `marginTop: 0`, `marginBottom: 0`, `marginLeft: 0`, `marginRight: 0`, and `pageRanges: '1'`.
+- Detach the debugger and return ONLY `{ pdfData: pdfResult.data }`.
+- Add two new message listeners in `chrome.runtime.onMessage`: `'capture_pdf'` and `'find_and_capture_pdf'`, which act exactly like the current ones but call `capturePdfOnly()` instead of `captureFullPage()`.
+
+2. Update `main.html` (Separate UI Buttons):
+In the Right Panel Controls, just below the `viewHtmlBtn`, add a visual divider (like `<hr style="border-color: var(--border); margin: 10px 0;">`) and a new section titled "Native PDF Export".
+- Add a new "Capture PDF" button (`id="capturePdfBtn"`, `class="btn btn-secondary"`).
+- Add a separate "Download PDF" button (`id="downloadPdfBtn"`, `class="btn btn-ghost"`) that is disabled by default.
+
+3. Update `main.js` (Separate Frontend Logic):
+- Create a global variable `let storedPdfData = null;`.
+- Add a click listener to `capturePdfBtn`. When clicked:
+  - Grab the URL, set status to "loading" ("Capturing PDF...").
+  - Send the `'capture_pdf'` message.
+  - If successful, store `response.pdfData` into `storedPdfData`, change status to "success" ("PDF generated and ready!"), and enable `downloadPdfBtn`.
+- Add a click listener to `downloadPdfBtn`. When clicked:
+  - Convert the base64 `storedPdfData` string into a Blob (`application/pdf`).
+  - Create a temporary object URL from the Blob.
+  - Create a hidden `<a>` tag with `href` set to the URL and `download="captured-page.pdf"`.
+  - Programmatically click the `<a>` tag to trigger the download, then revoke the URL.
+
+Ensure these new buttons work entirely independently of the original screenshot preview!
