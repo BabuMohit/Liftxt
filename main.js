@@ -5,7 +5,6 @@
   const viewHtmlBtn        = document.getElementById('viewHtmlBtn');
   const previewImage       = document.getElementById('previewImage');
   const previewContainer   = document.getElementById('previewContainer');
-  const snapshotStage      = document.getElementById('snapshotStage');
   const previewPlaceholder = document.getElementById('previewPlaceholder');
   const previewDims        = document.getElementById('previewDims');
   const statusIndicator    = document.getElementById('statusIndicator');
@@ -21,6 +20,8 @@
 
   let capturedHtml       = null;
   let isBusy             = false;
+  let currentSpatialMap  = [];
+  let currentDimensions  = { width: 1, height: 1 };
 
   let textLayerEl        = null;   // z-index 2 — ghost text, selectable
   let highlightLayerEl   = null;   // z-index 3 — search highlight boxes
@@ -28,6 +29,7 @@
   let highlightEls       = [];
   let matchIndices       = [];
   let currentMatchIdx    = -1;
+  let resizeObserver     = null;
 
   /* ── Helpers ── */
 
@@ -49,19 +51,25 @@
     return /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
   }
 
-  /* ── Positioning — percentage-based, scale-independent ── */
+  /* ── Scale calculation ── */
 
-  function applyPosition(el, item) {
-    el.style.left   = item.x_pct + '%';
-    el.style.top    = item.y_pct + '%';
-    el.style.width  = item.w_pct + '%';
-    el.style.height = item.h_pct + '%';
+  function getScale(screenshotW) {
+    const displayW = previewImage.clientWidth || previewImage.naturalWidth || screenshotW;
+    return displayW / screenshotW;
   }
 
-  // font-size as cqw (container query width %) so it auto-scales with the container
-  function applyTextStyle(el, item, totalWidth) {
-    const fontSizeCqw = ((item.fontSize || 16) / totalWidth) * 100;
-    el.style.fontSize   = fontSizeCqw + 'cqw';
+  /* ── Positioning ── */
+
+  function applyPosition(el, item, scale) {
+    el.style.left   = (item.x * scale) + 'px';
+    el.style.top    = (item.y * scale) + 'px';
+    el.style.width  = (item.width  * scale) + 'px';
+    el.style.height = (item.height * scale) + 'px';
+  }
+
+  function applyTextStyle(el, item, scale) {
+    const fs = (item.fontSize || 16) * scale;
+    el.style.fontSize   = fs + 'px';
     el.style.fontFamily = item.fontFamily || 'sans-serif';
   }
 
@@ -75,7 +83,8 @@
 
     if (!spatialMap || spatialMap.length === 0) return;
 
-    const totalWidth = dimensions.width;
+    const screenshotW = dimensions.width;
+    const scale = getScale(screenshotW);
 
     textLayerEl      = document.createElement('div');
     textLayerEl.className = 'text-layer';
@@ -84,40 +93,46 @@
     highlightLayerEl.className = 'highlight-layer';
 
     spatialMap.forEach((item) => {
-      /* Ghost text node — transparent but fully selectable */
+      /* Ghost text node — selectable, transparent */
       const textEl = document.createElement('div');
       textEl.className = 'text-node';
       textEl.textContent = item.text;
       textEl.dataset.text = item.text.toLowerCase();
       textEl.title = item.text;
-      applyPosition(textEl, item);
-      applyTextStyle(textEl, item, totalWidth);
+      applyPosition(textEl, item, scale);
+      applyTextStyle(textEl, item, scale);
       textLayerEl.appendChild(textEl);
       textNodeEls.push(textEl);
 
-      /* Highlight box — visual only, pointer-events: none via parent layer */
+      /* Highlight box — visual only, pointer-events: none via layer */
       const hlEl = document.createElement('div');
       hlEl.className = 'highlight-box';
-      applyPosition(hlEl, item);
+      applyPosition(hlEl, item, scale);
       highlightLayerEl.appendChild(hlEl);
       highlightEls.push(hlEl);
     });
 
-    snapshotStage.appendChild(textLayerEl);
-    snapshotStage.appendChild(highlightLayerEl);
+    previewContainer.appendChild(textLayerEl);
+    previewContainer.appendChild(highlightLayerEl);
+  }
+
+  function repositionAllNodes() {
+    if (!currentSpatialMap.length) return;
+    const scale = getScale(currentDimensions.width);
+    currentSpatialMap.forEach((item, i) => {
+      if (textNodeEls[i])  {
+        applyPosition(textNodeEls[i], item, scale);
+        applyTextStyle(textNodeEls[i], item, scale);
+      }
+      if (highlightEls[i]) applyPosition(highlightEls[i], item, scale);
+    });
   }
 
   /* ── Preview Display ── */
 
   function showPreview(base64Data, dimensions, spatialMap) {
-    const map = spatialMap || [];
-
-    // Clear any previous layers before loading new image
-    buildLayers([], dimensions);
-
-    // Fix the stage to the exact aspect ratio of the captured screenshot
-    // so all % positions inside map perfectly to image pixels at any display size
-    snapshotStage.style.aspectRatio = `${dimensions.width} / ${dimensions.height}`;
+    currentDimensions = dimensions;
+    currentSpatialMap = spatialMap || [];
 
     previewImage.src = 'data:image/png;base64,' + base64Data;
     previewContainer.classList.remove('hidden');
@@ -128,7 +143,12 @@
     resetSearch();
 
     previewImage.onload = () => {
-      buildLayers(map, dimensions);
+      buildLayers(currentSpatialMap, currentDimensions);
+
+      if (resizeObserver) resizeObserver.disconnect();
+      resizeObserver = new ResizeObserver(() => repositionAllNodes());
+      resizeObserver.observe(previewImage);
+
       searchInput.disabled = false;
       updateSearchCounter(0, 0);
     };

@@ -118,37 +118,19 @@ async function captureFullPage(tabId) {
     try {
       const spatialScript = `
         (function() {
-          var totalWidth  = ${width};
-          var totalHeight = ${height};
-          var map = [];
-
-          var EXCLUDED_TAGS = { SCRIPT:1, STYLE:1, NOSCRIPT:1, NAV:1, FOOTER:1 };
-
-          function ancestorCheck(el) {
-            var cur = el;
-            while (cur && cur.nodeType === 1 && cur !== document.documentElement) {
-              var tag = cur.tagName ? cur.tagName.toUpperCase() : '';
-              if (EXCLUDED_TAGS[tag]) return true;
-              if (cur.getAttribute('aria-hidden') === 'true') return true;
-              var pos = window.getComputedStyle(cur).position;
-              if (pos === 'fixed' || pos === 'sticky') return true;
-              cur = cur.parentElement;
-            }
-            return false;
-          }
-
-          var walker = document.createTreeWalker(
+          const map = [];
+          const walker = document.createTreeWalker(
             document.body,
             NodeFilter.SHOW_TEXT,
             {
               acceptNode: function(node) {
-                var text = node.textContent.trim();
+                const text = node.textContent.trim();
                 if (!text) return NodeFilter.FILTER_REJECT;
-                if (!/[a-zA-Z0-9]/.test(text)) return NodeFilter.FILTER_REJECT;
-                var parent = node.parentElement;
+                const parent = node.parentElement;
                 if (!parent) return NodeFilter.FILTER_REJECT;
-                if (ancestorCheck(parent)) return NodeFilter.FILTER_REJECT;
-                var style = window.getComputedStyle(parent);
+                const tag = parent.tagName ? parent.tagName.toUpperCase() : '';
+                if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT') return NodeFilter.FILTER_REJECT;
+                const style = window.getComputedStyle(parent);
                 if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) {
                   return NodeFilter.FILTER_REJECT;
                 }
@@ -156,24 +138,21 @@ async function captureFullPage(tabId) {
               }
             }
           );
-
-          var node;
+          let node;
           while ((node = walker.nextNode())) {
-            var text = node.textContent.trim();
-            if (!text || !/[a-zA-Z0-9]/.test(text)) continue;
-            var parent = node.parentElement;
-            var rect = parent.getBoundingClientRect();
-            if (rect.width < 4 || rect.height < 4) continue;
-            var cs = window.getComputedStyle(parent);
-            var ax = rect.left + window.scrollX;
-            var ay = rect.top  + window.scrollY;
+            const text = node.textContent.trim();
+            if (!text) continue;
+            const parent = node.parentElement;
+            const rect = parent.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) continue;
+            const cs = window.getComputedStyle(parent);
             map.push({
-              text:       text,
-              x_pct:      (ax          / totalWidth)  * 100,
-              y_pct:      (ay          / totalHeight) * 100,
-              w_pct:      (rect.width  / totalWidth)  * 100,
-              h_pct:      (rect.height / totalHeight) * 100,
-              fontSize:   parseFloat(cs.fontSize) || 16,
+              text: text,
+              x: Math.round(rect.left + window.scrollX),
+              y: Math.round(rect.top + window.scrollY),
+              width: Math.round(rect.width),
+              height: Math.round(rect.height),
+              fontSize: parseFloat(cs.fontSize) || 16,
               fontFamily: cs.fontFamily || 'sans-serif'
             });
           }
