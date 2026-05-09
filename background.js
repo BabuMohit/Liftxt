@@ -203,6 +203,19 @@ async function capturePdfOnly(tabId) {
     const paperWidth  = width  / 96;
     const paperHeight = height / 96;
 
+    await sendDebugCommand(tabId, 'Emulation.setDeviceMetricsOverride', {
+      width,
+      height,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
+
+    const screenshotResult = await sendDebugCommand(tabId, 'Page.captureScreenshot', {
+      format: 'png',
+      captureBeyondViewport: true,
+      clip: { x: 0, y: 0, width, height, scale: 1 }
+    });
+
     await sendDebugCommand(tabId, 'Emulation.setEmulatedMedia', { media: 'screen' });
 
     const pdfResult = await sendDebugCommand(tabId, 'Page.printToPDF', {
@@ -216,7 +229,11 @@ async function capturePdfOnly(tabId) {
       pageRanges:   '1'
     });
 
-    return { pdfData: pdfResult.data };
+    return {
+      pdfData:    pdfResult.data,
+      screenshot: screenshotResult.data,
+      dimensions: { width, height }
+    };
   } finally {
     if (attached) {
       await detachDebugger(tabId);

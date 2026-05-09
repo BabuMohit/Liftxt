@@ -266,7 +266,8 @@
     if (response.success) {
       storedPdfData = response.pdfData;
       downloadPdfBtn.disabled = false;
-      setStatus('success', 'PDF generated and ready!');
+      showPreview(response.screenshot, response.dimensions, []);
+      setStatus('success', `PDF Captured \u2014 ${response.dimensions.width}\u00d7${response.dimensions.height}px`);
     } else {
       setStatus('error', response.error || 'PDF capture failed.');
     }
